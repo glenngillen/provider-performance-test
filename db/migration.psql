@@ -1,0 +1,2 @@
+create table cache (key text, value text);
+create index ix_cache on cache (key, value);

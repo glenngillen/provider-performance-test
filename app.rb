@@ -2,7 +2,6 @@ require "sinatra"
 require "sinatra/synchrony"
 require "redis"
 require "pg"
-require "sequel"
 require "dalli"
 require "active_support/secure_random"
 
@@ -35,6 +34,17 @@ ENV.keys.select{|key| key =~ /MEMCACH.*_SERVERS/ }.each do |key|
         :failover => true, :down_retry_delay => 60, :keepalive => true)
 end
 
+if ENV["DATABASE_URL"]
+  config = URI.parse(ENV["DATABASE_URL"])
+  adapter = config.scheme
+  spec = { :dbname => config.path.sub(%r{^/},""),
+           :host => config.host }
+  spec[:user] = config.user if config.user
+  spec[:password] = config.password if config.password
+  spec[:port] = config.port if config.port
+  PG = PGconn.connect(spec)
+end
+
 def random_key
   ActiveSupport::SecureRandom.hex(16)
 end
@@ -65,4 +75,11 @@ end
 get %r{/(.*memcach.*)} do
   const = constantize(params[:captures].first.upcase)
   memcache_test(const)
+end
+
+get "/pg" do
+  key = random_key
+  val = random_value
+  PG.exec(%Q{insert into cache (key, value) values ('#{key}','#{val}')})
+  (val == PG.exec(%Q{select value from cache where key = '#{key}'}).getvalue(0,0)).to_s
 end
