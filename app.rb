@@ -1,8 +1,7 @@
 require "sinatra"
 require "sinatra/synchrony"
 require "redis"
-require "pg/em"
-require "em-synchrony/pg"
+require "pg"
 require "dalli"
 require "active_support/secure_random"
 
@@ -43,9 +42,7 @@ if ENV["DATABASE_URL"]
   spec[:user] = config.user if config.user
   spec[:password] = config.password if config.password
   spec[:port] = config.port if config.port
-  DB = EM::Synchrony::ConnectionPool.new(size: 10) do
-    PG::EM::Client.new(spec)
-  end
+  PG = PGconn.connect(spec)
 end
 
 def random_key
@@ -83,9 +80,6 @@ end
 get "/pg" do
   key = random_key
   val = random_value
-  DB.query(%Q{insert into cache (key, value) values ('#{key}','#{val}')}) do |inserted|
-    DB.query(%Q{select value from cache where key = '#{key}'}) do |result|
-      (val == result.getvalue(0,0)).to_s
-    end
-  end
+  PG.exec(%Q{insert into cache (key, value) values ('#{key}','#{val}')})
+  (val == PG.exec(%Q{select value from cache where key = '#{key}'}).getvalue(0,0)).to_s
 end
