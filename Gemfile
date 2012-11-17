@@ -10,4 +10,5 @@ gem "redis"
 gem "hiredis"
 gem "em-synchrony"
 gem "pg"
+gem 'em-pg-client'
 gem "ruby-debug19", :group => :development
