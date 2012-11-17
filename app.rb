@@ -25,6 +25,15 @@ ENV.keys.select{|key| key =~ /REDIS/ }.each do |key|
   const_name = key.sub(/_URL\z/,"")
   Object.const_set const_name, Redis.new(redis_connection_hash(ENV[key]))
 end
+ENV.keys.select{|key| key =~ /MEMCACH.*_SERVERS/ }.each do |key|
+  const_name = key.sub(/_SERVERS\z/,"")
+  hosts = ENV["#{const_name}_SERVERS"].split(",")
+  servers = hosts.map do |host|
+    "memcached://#{ENV["#{const_name}_USERNAME"]}:#{ENV["#{const_name}_PASSWORD"]}@#{host}"
+  end
+  Object.const_set const_name, Dalli::Client.new(servers,
+        :failover => true, :down_retry_delay => 60, :keepalive => true)
+end
 
 def random_key
   ActiveSupport::SecureRandom.hex(16)
@@ -41,7 +50,19 @@ def redis_test(const)
   (val == const.get(key)).to_s
 end
 
+def memcache_test(const)
+  key = random_key
+  val = random_value
+  const.set(key, val)
+  (val == const.get(key)).to_s
+end
+
 get %r{/(.*redis.*)} do
   const = constantize(params[:captures].first.upcase)
   redis_test(const)
+end
+
+get %r{/(.*memcach.*)} do
+  const = constantize(params[:captures].first.upcase)
+  memcache_test(const)
 end
